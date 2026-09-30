@@ -2,6 +2,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CREATE_DESKTOP_SHORTCUT=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --desktop-shortcut)
+      CREATE_DESKTOP_SHORTCUT=1
+      shift
+      ;;
+    *)
+      echo "未知参数: $1"
+      echo "用法: ./scripts/install.sh [--desktop-shortcut]"
+      exit 1
+      ;;
+  esac
+done
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "MacVoiceFlow 目前只支持 macOS。"
@@ -38,6 +53,28 @@ echo "使用 Python $PYTHON_VERSION 创建本地环境..."
 "$ROOT_DIR/.venv/bin/python" -m pip check
 
 mkdir -p "$HOME/Documents/MacVoiceFlow" "$HOME/Library/Caches/MacVoiceFlow/huggingface"
+
+if [[ "$CREATE_DESKTOP_SHORTCUT" == "1" ]]; then
+  desktop_dir="$HOME/Desktop"
+  mkdir -p "$desktop_dir"
+  shortcut_path="$desktop_dir/MacVoiceFlow.command"
+  shortcut_created=1
+
+  while [[ -e "$shortcut_path" || -L "$shortcut_path" ]]; do
+    if [[ -L "$shortcut_path" && "$(readlink "$shortcut_path")" == "$ROOT_DIR/MacVoiceFlow.command" ]]; then
+      shortcut_created=0
+      break
+    fi
+    shortcut_path="$desktop_dir/MacVoiceFlow ($((++shortcut_created))).command"
+  done
+
+  if [[ "$shortcut_created" != "0" ]]; then
+    ln -s "$ROOT_DIR/MacVoiceFlow.command" "$shortcut_path"
+    echo "已创建桌面快捷方式: $shortcut_path"
+  else
+    echo "桌面快捷方式已存在: $shortcut_path"
+  fi
+fi
 
 echo
 echo "MacVoiceFlow 安装完成。"

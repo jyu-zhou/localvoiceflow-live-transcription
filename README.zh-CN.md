@@ -37,11 +37,35 @@ MacVoiceFlow 是一个专注于单一任务的 macOS 桌面程序：把正在说
 ### 终端安装
 
 ```bash
-./scripts/install.sh
+./scripts/install.sh --desktop-shortcut
 ./scripts/run.sh
 ```
 
-安装脚本会创建隔离的 `.venv`，检查 Python/Tk 兼容性，校验依赖并准备本地数据与模型缓存目录。第一次启动会下载模型，后续启动会复用缓存。
+安装脚本会创建隔离的 `.venv`，检查 Python/Tk 兼容性，校验依赖，准备本地数据与模型缓存目录，并在桌面创建 `MacVoiceFlow.command` 快捷方式。如果只需要本地运行环境，可以省略 `--desktop-shortcut`。第一次启动会下载模型，后续启动会复用缓存。
+
+### 使用 Agent 一键安装
+
+如果你的 Agent 可以在 macOS 上执行终端命令，把下面这段 Prompt 直接发给它。Agent 会克隆或安全更新项目、安装依赖、创建桌面快捷方式并启动一次程序。如果目标目录有未提交修改，它必须停止，不能覆盖用户工作。
+
+```text
+请在这台 Apple Silicon Mac 上安装 MacVoiceFlow。
+
+仓库地址：
+https://github.com/jyu-zhou/macvoiceflow-live-transcription.git
+
+安装到：
+~/Applications/MacVoiceFlow
+
+请执行以下步骤：
+1. 检查当前系统是否为 Apple Silicon macOS，并确认存在带 Tk 支持的 Python 3.11 或 3.12。如果缺少，请明确说明缺少什么并停止。
+2. 如果 ~/Applications/MacVoiceFlow 不存在，就把仓库克隆到该目录。如果它已经是 Git 仓库，先执行 `git status --porcelain`；如果存在未提交修改，不要覆盖并停止报告。否则执行 `git pull --ff-only` 安全更新。
+3. 进入项目目录，执行 `./scripts/install.sh --desktop-shortcut`。
+4. 确认 `~/Desktop/MacVoiceFlow.command` 存在，并且指向项目里的 `MacVoiceFlow.command` 启动器。如果这个文件名已经被其他文件占用，保留原文件，并报告安装器创建的备用快捷方式路径。
+5. 不要使用 sudo；不要删除用户数据、已有录音、模型缓存或无关文件；不要修改 macOS 麦克风隐私设置。如果系统请求权限，告诉我由用户手动确认。
+6. 安装成功后启动一次桌面快捷方式，并报告最终项目路径、快捷方式路径，以及可能出现的权限或模型下载提示。
+```
+
+这段 Prompt 调用的是仓库自带安装器，不会把未经检查的远程脚本直接通过管道交给 shell 执行。
 
 ## 数据与缓存位置
 
@@ -50,11 +74,13 @@ MacVoiceFlow 是一个专注于单一任务的 macOS 桌面程序：把正在说
 ```text
 ~/Documents/MacVoiceFlow/
 ├── Record/        # 保存的 WAV 录音
-├── 转录结果/        # Markdown 转录稿
+├── Transcripts/    # Markdown 转录稿
 └── TempChunks/    # 实时转录临时片段
 ```
 
 模型缓存位于 `~/Library/Caches/MacVoiceFlow/huggingface/`。
+
+旧版本使用的 `转录结果/` 会自动迁移为 `Transcripts/`；如果新旧目录同时存在，程序会保留两边文件并避免覆盖。
 
 如需迁移位置：
 

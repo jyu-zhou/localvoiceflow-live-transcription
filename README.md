@@ -37,11 +37,35 @@ Intel Macs are not supported by the current MLX runtime.
 ### Terminal
 
 ```bash
-./scripts/install.sh
+./scripts/install.sh --desktop-shortcut
 ./scripts/run.sh
 ```
 
-The installer creates an isolated `.venv`, checks Python/Tk compatibility, verifies installed dependencies, and prepares the local data and model-cache directories. The first launch downloads the selected model; later launches reuse the cache.
+The installer creates an isolated `.venv`, checks Python/Tk compatibility, verifies installed dependencies, prepares the local data and model-cache directories, and adds a Desktop shortcut named `MacVoiceFlow.command`. Omit `--desktop-shortcut` if you only want the local environment. The first launch downloads the selected model; later launches reuse the cache.
+
+### Install with an AI agent
+
+If your AI agent can run terminal commands on macOS, paste the following prompt into it. The agent will clone or safely update the project, install the dependencies, create the Desktop shortcut, and launch the app once. It must stop instead of overwriting a directory that contains uncommitted work.
+
+```text
+Install MacVoiceFlow on this Apple Silicon Mac.
+
+Repository:
+https://github.com/jyu-zhou/macvoiceflow-live-transcription.git
+
+Use this target directory:
+~/Applications/MacVoiceFlow
+
+Do the following:
+1. Verify that this is macOS on Apple Silicon and that Python 3.11 or 3.12 with Tk support is available. If not, explain exactly what is missing and stop.
+2. If ~/Applications/MacVoiceFlow does not exist, clone the repository there. If it already is a Git checkout, inspect `git status --porcelain`; if it contains uncommitted changes, do not overwrite them and stop with a report. Otherwise update it with `git pull --ff-only`.
+3. Run `./scripts/install.sh --desktop-shortcut` from the project directory.
+4. Confirm that `~/Desktop/MacVoiceFlow.command` exists and points to the project's `MacVoiceFlow.command` launcher. If that name is already occupied by another file, keep the existing file and report the alternate shortcut path created by the installer.
+5. Do not use sudo. Do not delete user data, existing recordings, model caches, or unrelated files. Do not change macOS microphone privacy settings; tell me if macOS asks for permission.
+6. After installation succeeds, launch the Desktop shortcut once and report the final project path, shortcut path, and any permission or model-download prompt.
+```
+
+This prompt uses the repository's own installer; it does not pipe an unreviewed remote script into a shell.
 
 ## Data and cache
 
@@ -50,11 +74,13 @@ By default, user data is kept outside the repository:
 ```text
 ~/Documents/MacVoiceFlow/
 ├── Record/        # saved WAV recordings
-├── 转录结果/        # Markdown transcripts
+├── Transcripts/    # Markdown transcripts
 └── TempChunks/    # temporary real-time chunks
 ```
 
 The model cache is stored under `~/Library/Caches/MacVoiceFlow/huggingface/`.
+
+Older installations using `转录结果/` are migrated to `Transcripts/` automatically without overwriting existing files.
 
 To move either location:
 

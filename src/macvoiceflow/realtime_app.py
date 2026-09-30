@@ -13,6 +13,7 @@ import sys
 import subprocess
 import re
 import json
+import shutil
 from pathlib import Path
 
 import logging
@@ -73,7 +74,7 @@ warnings.filterwarnings("ignore")
 
 # === 1. 路径与常量配置 ===
 APP_NAME = "MacVoiceFlow"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 DATA_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_DATA_DIR", "~/Documents/MacVoiceFlow")))
 CACHE_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_CACHE_DIR", "~/Library/Caches/MacVoiceFlow")))
 os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "huggingface"))
@@ -81,7 +82,9 @@ os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "huggingface"))
 BASE_DIR = str(DATA_ROOT)
 TEMP_DIR = str(DATA_ROOT / "TempChunks")
 RECORD_DIR = str(DATA_ROOT / "Record")
-RESULT_DIR = str(DATA_ROOT / "转录结果")
+RESULT_PATH = DATA_ROOT / "Transcripts"
+LEGACY_RESULT_PATH = DATA_ROOT / "转录结果"
+RESULT_DIR = str(RESULT_PATH)
 LOG_FILE = str(DATA_ROOT / "app.log")
 CONFIG_FILE = str(DATA_ROOT / "config.json")
 
@@ -94,6 +97,32 @@ DEFAULT_SETTINGS = {
     "vad_threshold": 0.006,
     "pause_duration": 0.8
 }
+
+def migrate_legacy_result_dir():
+    """Move the former Chinese result directory without overwriting user files."""
+    if not LEGACY_RESULT_PATH.exists():
+        return
+    try:
+        if not RESULT_PATH.exists():
+            LEGACY_RESULT_PATH.rename(RESULT_PATH)
+            return
+
+        for item in sorted(LEGACY_RESULT_PATH.iterdir(), key=lambda path: path.name):
+            target = RESULT_PATH / item.name
+            if target.exists():
+                index = 2
+                while True:
+                    target = RESULT_PATH / f"{item.stem} (legacy {index}){item.suffix}"
+                    if not target.exists():
+                        break
+                    index += 1
+            shutil.move(str(item), str(target))
+        LEGACY_RESULT_PATH.rmdir()
+    except OSError as exc:
+        print(f"[MacVoiceFlow] Could not migrate legacy transcript folder: {exc}", file=sys.stderr)
+
+
+migrate_legacy_result_dir()
 
 for d in [TEMP_DIR, RECORD_DIR, RESULT_DIR]:
     os.makedirs(d, exist_ok=True)
