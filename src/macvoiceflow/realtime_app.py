@@ -69,14 +69,47 @@ def clean_and_format_transcript(raw_text, target_chars_per_para=150):
     return '\n\n'.join(paragraphs)
 
 # === 0. 基础环境配置 ===
-os.environ["PATH"] = os.pathsep.join(filter(None, ["/opt/homebrew/bin", os.environ.get("PATH", "")]))
+if sys.platform == "darwin":
+    os.environ["PATH"] = os.pathsep.join(filter(None, ["/opt/homebrew/bin", os.environ.get("PATH", "")]))
 warnings.filterwarnings("ignore")
 
 # === 1. 路径与常量配置 ===
-APP_NAME = "MacVoiceFlow"
-APP_VERSION = "0.2.1"
-DATA_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_DATA_DIR", "~/Documents/MacVoiceFlow")))
-CACHE_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_CACHE_DIR", "~/Library/Caches/MacVoiceFlow")))
+APP_NAME = "LocalVoiceFlow"
+LEGACY_APP_NAME = "MacVoiceFlow"
+APP_VERSION = "0.3.0"
+
+
+def _expand_path(value):
+    return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def _default_data_root():
+    current = Path.home() / "Documents" / APP_NAME
+    legacy = Path.home() / "Documents" / LEGACY_APP_NAME
+    return legacy if legacy.exists() and not current.exists() else current
+
+
+def _default_cache_root():
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return base / APP_NAME
+    if sys.platform == "darwin":
+        current = Path.home() / "Library" / "Caches" / APP_NAME
+        legacy = Path.home() / "Library" / "Caches" / LEGACY_APP_NAME
+        return legacy if legacy.exists() and not current.exists() else current
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / APP_NAME
+
+
+DATA_ROOT = _expand_path(
+    os.environ.get("LOCALVOICEFLOW_DATA_DIR")
+    or os.environ.get("MACVOICEFLOW_DATA_DIR")
+    or str(_default_data_root())
+)
+CACHE_ROOT = _expand_path(
+    os.environ.get("LOCALVOICEFLOW_CACHE_DIR")
+    or os.environ.get("MACVOICEFLOW_CACHE_DIR")
+    or str(_default_cache_root())
+)
 os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "huggingface"))
 
 BASE_DIR = str(DATA_ROOT)
@@ -119,7 +152,7 @@ def migrate_legacy_result_dir():
             shutil.move(str(item), str(target))
         LEGACY_RESULT_PATH.rmdir()
     except OSError as exc:
-        print(f"[MacVoiceFlow] Could not migrate legacy transcript folder: {exc}", file=sys.stderr)
+        print(f"[{APP_NAME}] Could not migrate legacy transcript folder: {exc}", file=sys.stderr)
 
 
 migrate_legacy_result_dir()
@@ -151,25 +184,41 @@ if hasattr(threading, "excepthook"):
         logger.critical(f"子线程 [{args.thread.name}] 未捕获异常:", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
     threading.excepthook = _handle_thread_exception
 
-# 模型库 (调整顺序，1.7B-4bit 为首选默认)
+# 模型库：macOS 使用 MLX，Windows 使用 CrispASR + Qwen3-ASR GGUF。
+PLATFORM_KEY = "windows" if os.name == "nt" else "macos"
 MODEL_OPTIONS = {
     "qwen-1.7b-4bit": {
-        "id": "mlx-community/Qwen3-ASR-1.7B-4bit",
-        "en": "1.7B · 4-bit (Recommended)",
-        "zh": "1.7B-4bit（默认/推荐）",
+        "en": "1.7B · 4-bit / Q4_K (Recommended)",
+        "zh": "1.7B · 4-bit / Q4_K（默认/推荐）",
         "legacy": {"1.7B-4bit (默认/推荐)"},
+        "macos": {"backend": "mlx", "id": "mlx-community/Qwen3-ASR-1.7B-4bit"},
+        "windows": {
+            "backend": "crispasr",
+            "repo_id": "cstr/qwen3-asr-1.7b-GGUF",
+            "filename": "qwen3-asr-1.7b-q4_k.gguf",
+        },
     },
     "qwen-1.7b-8bit": {
-        "id": "mlx-community/Qwen3-ASR-1.7B-8bit",
-        "en": "1.7B · 8-bit (Higher precision)",
-        "zh": "1.7B-8bit（高精度）",
+        "en": "1.7B · 8-bit / Q8_0 (Higher precision)",
+        "zh": "1.7B · 8-bit / Q8_0（高精度）",
         "legacy": {"1.7B-8bit (高精)"},
+        "macos": {"backend": "mlx", "id": "mlx-community/Qwen3-ASR-1.7B-8bit"},
+        "windows": {
+            "backend": "crispasr",
+            "repo_id": "cstr/qwen3-asr-1.7b-GGUF",
+            "filename": "qwen3-asr-1.7b-q8_0.gguf",
+        },
     },
     "qwen-0.6b-8bit": {
-        "id": "mlx-community/Qwen3-ASR-0.6B-8bit",
-        "en": "0.6B · 8-bit (Faster)",
-        "zh": "0.6B-8bit（更快）",
+        "en": "0.6B · compact / Q4_K (Faster)",
+        "zh": "0.6B · 轻量 / Q4_K（更快）",
         "legacy": {"0.6B-8bit (极速)"},
+        "macos": {"backend": "mlx", "id": "mlx-community/Qwen3-ASR-0.6B-8bit"},
+        "windows": {
+            "backend": "crispasr",
+            "repo_id": "cstr/qwen3-asr-0.6b-GGUF",
+            "filename": "qwen3-asr-0.6b-q4_k.gguf",
+        },
     },
 }
 
@@ -188,7 +237,7 @@ OUTPUT_LANGUAGE_OPTIONS = [
 
 TEXT = {
     "en": {
-        "app_title": "MacVoiceFlow · Live Transcription",
+        "app_title": "LocalVoiceFlow · Live Transcription",
         "ui_language": "Interface",
         "model": "Model",
         "output_language": "Transcription language",
@@ -215,7 +264,7 @@ TEXT = {
         "stop_save": "Stop & save",
         "open_play": "Open / play",
         "copy_file": "Copy file",
-        "show_in_finder": "Show in Finder",
+        "show_in_finder": "Show in File Explorer" if os.name == "nt" else "Show in Finder",
         "rename": "Rename",
         "delete_selected": "Delete selected",
         "copy_selection": "Copy selection",
@@ -258,7 +307,7 @@ TEXT = {
         "transcript_time": "Time",
     },
     "zh": {
-        "app_title": "MacVoiceFlow · 实时转录",
+        "app_title": "LocalVoiceFlow · 实时转录",
         "ui_language": "界面语言",
         "model": "模型引擎",
         "output_language": "转录语言",
@@ -285,7 +334,7 @@ TEXT = {
         "stop_save": "停止并保存",
         "open_play": "打开 / 播放",
         "copy_file": "复制文件",
-        "show_in_finder": "在 Finder 中显示",
+        "show_in_finder": "在文件资源管理器中显示" if os.name == "nt" else "在 Finder 中显示",
         "rename": "重命名",
         "delete_selected": "删除选中",
         "copy_selection": "复制选中",
@@ -354,6 +403,37 @@ def normalize_model_key(value):
             return key
     return "qwen-1.7b-4bit"
 
+
+def model_spec(key):
+    return MODEL_OPTIONS[normalize_model_key(key)][PLATFORM_KEY]
+
+
+def model_identity(key):
+    spec = model_spec(key)
+    if spec["backend"] == "crispasr":
+        return f"{spec['backend']}:{spec['repo_id']}:{spec['filename']}"
+    return f"{spec['backend']}:{spec['id']}"
+
+
+def open_path(path):
+    """Open a file with the native file manager on each supported desktop."""
+    if os.name == "nt":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", path], check=False)
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+
+
+def reveal_path(path):
+    """Reveal a file in the native file manager when the platform supports it."""
+    if os.name == "nt":
+        subprocess.run(["explorer", "/select,", os.path.normpath(path)], check=False)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", "-R", path], check=False)
+    else:
+        open_path(os.path.dirname(path))
+
 # === 2. 录音室控制台设计系统 (Design System Tokens) ===
 THEME = {
     "bg_main":       "#F0F0EC",  # 页面外沿
@@ -414,6 +494,7 @@ class UltimateASR:
         self.vad_buffer = []
         self.model = None
         self.current_model_id = ""
+        self.model_backend = ""
         self.speech_active = False
 
         # 实时会话与文件状态
@@ -735,6 +816,13 @@ class UltimateASR:
                 self.stream.close()
             except Exception:
                 pass
+        if self.model:
+            try:
+                close = getattr(self.model, "close", None)
+                if close:
+                    close()
+            except Exception:
+                pass
         self.root.destroy()
 
     def _on_ui_language_change(self, event=None):
@@ -848,14 +936,14 @@ class UltimateASR:
         left = ttk.Frame(paned, style="Card.TFrame")
         paned.add(left, width=380)
 
-        self.lbl_rec_header, self.btn_open_record = self._create_header(left, "recordings", btn_key="open", btn_cmd=lambda: subprocess.run(["open", RECORD_DIR]))
+        self.lbl_rec_header, self.btn_open_record = self._create_header(left, "recordings", btn_key="open", btn_cmd=lambda: open_path(RECORD_DIR))
         self.lst_rec = self._create_listbox(left)
         self.lst_rec.pack(fill=tk.BOTH, expand=True, padx=12)
         self.btn_batch, self.btn_refresh = self._create_toolbar(left, "batch_transcribe", self.transcribe_sel, "refresh", self.on_manual_refresh)
 
         ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=16, pady=8)
 
-        self.lbl_res_header, self.btn_open_results = self._create_header(left, "results", btn_key="open", btn_cmd=lambda: subprocess.run(["open", RESULT_DIR]))
+        self.lbl_res_header, self.btn_open_results = self._create_header(left, "results", btn_key="open", btn_cmd=lambda: open_path(RESULT_DIR))
         self.lst_res = self._create_listbox(left)
         self.lst_res.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
@@ -1021,7 +1109,7 @@ class UltimateASR:
     # === 模型加载 ===
     def trigger_model_switch(self, e=None):
         self.current_model_key = self.model_key_from_value(self.cb_model.get())
-        mid = MODEL_OPTIONS[self.current_model_key]["id"]
+        mid = model_identity(self.current_model_key)
         self.save_settings()
         if mid == self.current_model_id or mid == self.loading_model_id:
             return
@@ -1031,7 +1119,7 @@ class UltimateASR:
             self.progress.config(mode='indeterminate'),
             self.progress.start(10)
         ])
-        self.asr_queue.put(("LOAD_MODEL", mid))
+        self.asr_queue.put(("LOAD_MODEL", self.current_model_key))
 
     # === 录音与实时切片逻辑 ===
     def start_rec(self):
@@ -1174,36 +1262,57 @@ class UltimateASR:
         # 直接向 ASR 专属队列推送转录任务
         self.asr_queue.put(("TRANSCRIBE", audio))
 
-    # === ASR 专属单一工作线程（模型加载与转录全生命周期共用同一线程，彻底根除 MLX Stream 冲突） ===
+    # === ASR 专属单一工作线程（模型加载与转录全生命周期共用同一线程） ===
     def asr_worker(self):
-        logger.info("ASR 专属工作线程已启动（严格保证 MLX GPU Stream 上下文一致）")
+        logger.info("ASR 专属工作线程已启动（平台后端: %s）", PLATFORM_KEY)
         while True:
             try:
                 task = self.asr_queue.get()
                 action, payload = task[0], task[1]
 
                 if action == "LOAD_MODEL":
-                    mid = payload
+                    model_key = normalize_model_key(payload)
+                    spec = model_spec(model_key)
+                    mid = model_identity(model_key)
                     logger.info(f"ASR 线程开始加载模型: {mid}")
                     self.ui_queue.put(("STATUS_KEY", "model_loading", THEME["warning"]))
                     self.ui_queue.put(("PROGRESS", "indeterminate", 10, "start"))
 
                     if self.model:
+                        try:
+                            close = getattr(self.model, "close", None)
+                            if close:
+                                close()
+                        except Exception as e:
+                            logger.warning(f"释放旧模型异常: {e}")
                         del self.model
                         self.model = None
                     gc.collect()
-                    try:
-                        import mlx.core as mx
-                        if hasattr(mx, "clear_cache"):
-                            mx.clear_cache()
-                        elif hasattr(mx, "metal") and mx.metal.is_available() and hasattr(mx.metal, "clear_cache"):
-                            mx.metal.clear_cache()
-                    except Exception as e:
-                        logger.warning(f"清除显存缓存异常: {e}")
+                    if spec["backend"] == "mlx":
+                        try:
+                            import mlx.core as mx
+                            if hasattr(mx, "clear_cache"):
+                                mx.clear_cache()
+                            elif hasattr(mx, "metal") and mx.metal.is_available() and hasattr(mx.metal, "clear_cache"):
+                                mx.metal.clear_cache()
+                        except Exception as e:
+                            logger.warning(f"清除 MLX 缓存异常: {e}")
 
                     try:
-                        from mlx_audio.stt.utils import load_model
-                        self.model = load_model(mid)
+                        if spec["backend"] == "mlx":
+                            from mlx_audio.stt.utils import load_model
+                            self.model = load_model(spec["id"])
+                        else:
+                            from huggingface_hub import hf_hub_download
+                            from crispasr import Session
+                            model_path = hf_hub_download(
+                                repo_id=spec["repo_id"],
+                                filename=spec["filename"],
+                                cache_dir=str(CACHE_ROOT / "huggingface"),
+                            )
+                            thread_count = max(1, min(8, (os.cpu_count() or 4) // 2))
+                            self.model = Session(model_path, n_threads=thread_count, backend="qwen3")
+                        self.model_backend = spec["backend"]
                         self.current_model_id = mid
                         self.loading_model_id = ""
                         logger.info(f"ASR 线程模型加载成功: {mid}")
@@ -1211,6 +1320,7 @@ class UltimateASR:
                         self.ui_queue.put(("PROGRESS", "determinate", 0, "stop"))
                     except Exception as e:
                         self.current_model_id = ""
+                        self.model_backend = ""
                         self.loading_model_id = ""
                         logger.error(f"模型加载失败 [{mid}]: {e}", exc_info=True)
                         self.ui_queue.put(("STATUS_KEY", "model_load_failed", THEME["danger"]))
@@ -1261,13 +1371,19 @@ class UltimateASR:
             if len(arr) == 0:
                 return
 
-            # 安全读取当前语言变量
+            # 安全读取当前语言变量，并使用当前平台对应的 ASR API。
             lang = self.current_lang
-            kwargs = {'language': lang} if lang else {}
-
-            # 使用 model.generate 推理
-            res = self.model.generate(arr, verbose=False, **kwargs)
-            txt = res.text.strip() if hasattr(res, 'text') else str(res).strip()
+            if self.model_backend == "crispasr":
+                segments = self.model.transcribe(
+                    arr,
+                    sample_rate=16000,
+                    language=lang,
+                )
+                txt = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+            else:
+                kwargs = {'language': lang} if lang else {}
+                res = self.model.generate(arr, verbose=False, **kwargs)
+                txt = res.text.strip() if hasattr(res, 'text') else str(res).strip()
 
             if txt:
                 logger.info(f"转录成功: {txt}")
@@ -1298,15 +1414,16 @@ class UltimateASR:
         except Exception as e:
             logger.error(f"转录执行异常: {e}", exc_info=True)
         finally:
-            # 即刻清理 MLX 显存缓存与局部引用，防止内存泄漏导致系统级 Swap 换页卡死
+            # macOS MLX 需要主动清理缓存；Windows CrispASR 使用原生模型生命周期管理。
             if 'res' in locals():
                 del res
-            try:
-                import mlx.core as mx
-                if hasattr(mx, "clear_cache"):
-                    mx.clear_cache()
-            except Exception:
-                pass
+            if self.model_backend == "mlx":
+                try:
+                    import mlx.core as mx
+                    if hasattr(mx, "clear_cache"):
+                        mx.clear_cache()
+                except Exception:
+                    pass
 
     # === 停止与保存 ===
     def stop_rec(self):
@@ -1587,18 +1704,24 @@ class UltimateASR:
     def menu_open(self):
         if not self.active_list:
             return
-        for p in self.get_sel_paths(self.active_list): subprocess.run(["open", p])
+        for p in self.get_sel_paths(self.active_list):
+            open_path(p)
     def dbl_click_open(self, e):
         self.active_list = e.widget
         self.menu_open()
     def menu_copy_file(self):
         ps = self.get_sel_paths(self.active_list)
         if ps:
-            fl = ", ".join([f'POSIX file "{p}"' for p in ps])
-            os.system(f"osascript -e 'set the clipboard to {{{fl}}}'")
+            if sys.platform == "darwin":
+                fl = ", ".join([f'POSIX file "{p}"' for p in ps])
+                os.system(f"osascript -e 'set the clipboard to {{{fl}}}'")
+            else:
+                self.root.clipboard_clear()
+                self.root.clipboard_append("\n".join(ps))
     def menu_reveal(self):
         ps = self.get_sel_paths(self.active_list)
-        if ps: subprocess.run(["open", "-R", ps[0]])
+        if ps:
+            reveal_path(ps[0])
     def menu_delete(self):
         for p in self.get_sel_paths(self.active_list): os.remove(p)
         self.refresh_files()

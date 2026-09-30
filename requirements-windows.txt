@@ -1,0 +1,7 @@
+# Python 3.11/3.12 on Windows x64.
+numpy==2.4.6
+librosa==0.11.0
+sounddevice==0.5.5
+soundfile==0.13.1
+huggingface-hub>=0.28,<1
+crispasr==0.8.38

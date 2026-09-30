@@ -19,12 +19,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "MacVoiceFlow 目前只支持 macOS。"
+  echo "LocalVoiceFlow 的 macOS 安装器只能在 macOS 上运行；Windows 请使用 scripts/install.ps1。"
   exit 1
 fi
 
 if [[ "$(uname -m)" != "arm64" ]]; then
-  echo "MacVoiceFlow 依赖 Apple Silicon 的 MLX，目前只支持 arm64。"
+  echo "LocalVoiceFlow 的 MLX 后端需要 Apple Silicon，目前只支持 arm64。"
   exit 1
 fi
 
@@ -52,24 +52,32 @@ echo "使用 Python $PYTHON_VERSION 创建本地环境..."
 "$ROOT_DIR/.venv/bin/python" -m pip install -r "$ROOT_DIR/requirements-macos.txt"
 "$ROOT_DIR/.venv/bin/python" -m pip check
 
-mkdir -p "$HOME/Documents/MacVoiceFlow" "$HOME/Library/Caches/MacVoiceFlow/huggingface"
+data_root="$HOME/Documents/LocalVoiceFlow"
+cache_root="$HOME/Library/Caches/LocalVoiceFlow"
+if [[ -d "$HOME/Documents/MacVoiceFlow" && ! -d "$data_root" ]]; then
+  data_root="$HOME/Documents/MacVoiceFlow"
+fi
+if [[ -d "$HOME/Library/Caches/MacVoiceFlow" && ! -d "$cache_root" ]]; then
+  cache_root="$HOME/Library/Caches/MacVoiceFlow"
+fi
+mkdir -p "$data_root" "$cache_root/huggingface"
 
 if [[ "$CREATE_DESKTOP_SHORTCUT" == "1" ]]; then
   desktop_dir="$HOME/Desktop"
   mkdir -p "$desktop_dir"
-  shortcut_path="$desktop_dir/MacVoiceFlow.command"
+  shortcut_path="$desktop_dir/LocalVoiceFlow.command"
   shortcut_created=1
 
   while [[ -e "$shortcut_path" || -L "$shortcut_path" ]]; do
-    if [[ -L "$shortcut_path" && "$(readlink "$shortcut_path")" == "$ROOT_DIR/MacVoiceFlow.command" ]]; then
+    if [[ -L "$shortcut_path" && "$(readlink "$shortcut_path")" == "$ROOT_DIR/LocalVoiceFlow.command" ]]; then
       shortcut_created=0
       break
     fi
-    shortcut_path="$desktop_dir/MacVoiceFlow ($((++shortcut_created))).command"
+    shortcut_path="$desktop_dir/LocalVoiceFlow ($((++shortcut_created))).command"
   done
 
   if [[ "$shortcut_created" != "0" ]]; then
-    ln -s "$ROOT_DIR/MacVoiceFlow.command" "$shortcut_path"
+    ln -s "$ROOT_DIR/LocalVoiceFlow.command" "$shortcut_path"
     echo "已创建桌面快捷方式: $shortcut_path"
   else
     echo "桌面快捷方式已存在: $shortcut_path"
@@ -77,6 +85,6 @@ if [[ "$CREATE_DESKTOP_SHORTCUT" == "1" ]]; then
 fi
 
 echo
-echo "MacVoiceFlow 安装完成。"
-echo "下一步：双击 MacVoiceFlow.command，或运行 ./scripts/run.sh"
+echo "LocalVoiceFlow 安装完成。"
+echo "下一步：双击 LocalVoiceFlow.command，或运行 ./scripts/run.sh"
 echo "首次启动会下载所选语音模型，并请求麦克风权限。"
