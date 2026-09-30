@@ -73,7 +73,7 @@ warnings.filterwarnings("ignore")
 
 # === 1. 路径与常量配置 ===
 APP_NAME = "MacVoiceFlow"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 DATA_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_DATA_DIR", "~/Documents/MacVoiceFlow")))
 CACHE_ROOT = Path(os.path.expanduser(os.environ.get("MACVOICEFLOW_CACHE_DIR", "~/Library/Caches/MacVoiceFlow")))
 os.environ.setdefault("HF_HOME", str(CACHE_ROOT / "huggingface"))
@@ -86,8 +86,9 @@ LOG_FILE = str(DATA_ROOT / "app.log")
 CONFIG_FILE = str(DATA_ROOT / "config.json")
 
 DEFAULT_SETTINGS = {
-    "model": "1.7B-4bit (默认/推荐)",
-    "language": "中文",
+    "ui_language": "en",
+    "model": "qwen-1.7b-4bit",
+    "language": "zh",
     "max_lines": "3000",
     "max_segment_duration": 10.0,
     "vad_threshold": 0.006,
@@ -122,16 +123,207 @@ if hasattr(threading, "excepthook"):
     threading.excepthook = _handle_thread_exception
 
 # 模型库 (调整顺序，1.7B-4bit 为首选默认)
-MODELS = {
-    "1.7B-4bit (默认/推荐)": "mlx-community/Qwen3-ASR-1.7B-4bit",
-    "1.7B-8bit (高精)": "mlx-community/Qwen3-ASR-1.7B-8bit",
-    "0.6B-8bit (极速)": "mlx-community/Qwen3-ASR-0.6B-8bit",
+MODEL_OPTIONS = {
+    "qwen-1.7b-4bit": {
+        "id": "mlx-community/Qwen3-ASR-1.7B-4bit",
+        "en": "1.7B · 4-bit (Recommended)",
+        "zh": "1.7B-4bit（默认/推荐）",
+        "legacy": {"1.7B-4bit (默认/推荐)"},
+    },
+    "qwen-1.7b-8bit": {
+        "id": "mlx-community/Qwen3-ASR-1.7B-8bit",
+        "en": "1.7B · 8-bit (Higher precision)",
+        "zh": "1.7B-8bit（高精度）",
+        "legacy": {"1.7B-8bit (高精)"},
+    },
+    "qwen-0.6b-8bit": {
+        "id": "mlx-community/Qwen3-ASR-0.6B-8bit",
+        "en": "0.6B · 8-bit (Faster)",
+        "zh": "0.6B-8bit（更快）",
+        "legacy": {"0.6B-8bit (极速)"},
+    },
 }
 
-LANGUAGES = {
-    "中文": "zh", "英语": "en", "法语": "fr", "日语": "ja",
-    "韩语": "ko", "德语": "de", "西语": "es", "自动": None
+UI_LANGUAGE_OPTIONS = {"English": "en", "中文": "zh"}
+UI_LANGUAGE_LABELS = {code: label for label, code in UI_LANGUAGE_OPTIONS.items()}
+OUTPUT_LANGUAGE_OPTIONS = [
+    ("zh", "Chinese", "中文"),
+    ("en", "English", "英语"),
+    ("fr", "French", "法语"),
+    ("ja", "Japanese", "日语"),
+    ("ko", "Korean", "韩语"),
+    ("de", "German", "德语"),
+    ("es", "Spanish", "西语"),
+    (None, "Auto", "自动"),
+]
+
+TEXT = {
+    "en": {
+        "app_title": "MacVoiceFlow · Live Transcription",
+        "ui_language": "Interface",
+        "model": "Model",
+        "output_language": "Transcription language",
+        "max_lines": "Max lines",
+        "max_segment_duration": "Max segment (sec)",
+        "vad_threshold": "Mic threshold (VAD)",
+        "pause_duration": "Pause to split (sec)",
+        "defaults": "Defaults",
+        "apply": "Apply",
+        "initializing": "● Initializing...",
+        "recordings": "Recordings",
+        "results": "Transcripts",
+        "open": "Open",
+        "batch_transcribe": "Batch transcribe",
+        "refresh": "Refresh",
+        "live_editor": "Live transcript / editor",
+        "file_name": "File name:",
+        "save_name": "Save name",
+        "queue_idle": "Queue idle",
+        "microphone_ready": "Microphone ready",
+        "start_recording": "Start recording",
+        "pause": "Pause",
+        "resume": "Resume",
+        "stop_save": "Stop & save",
+        "open_play": "Open / play",
+        "copy_file": "Copy file",
+        "show_in_finder": "Show in Finder",
+        "rename": "Rename",
+        "delete_selected": "Delete selected",
+        "copy_selection": "Copy selection",
+        "clear": "Clear",
+        "model_loading": "Loading model...",
+        "model_ready": "Model ready",
+        "model_load_failed": "Model failed to load",
+        "recording": "Recording",
+        "recording_buffering": "Recording · waiting for model",
+        "mic_start_failed": "Microphone unavailable",
+        "organizing": "Organizing files...",
+        "saved_name": "Saved: {name}",
+        "save_failed": "Save failed",
+        "recording_empty": "Recording empty",
+        "paused": "Paused",
+        "recording_listening": "Listening",
+        "recording_speaking": "Listening · speech detected",
+        "ambient_silence": "Ambient silence",
+        "queue_backlog": "Queue: {count}",
+        "invalid_values": "Invalid value(s); defaults restored",
+        "settings_applied": "Settings applied",
+        "settings_reset": "Defaults restored",
+        "current_transcript": "Current transcript: {name}",
+        "list_refreshed": "List refreshed",
+        "list_refreshed_no_selection": "List refreshed · no file selected",
+        "file_name_required": "File name cannot be empty",
+        "filename_set": "Name set for this recording: {name}",
+        "renamed": "Renamed: {name}",
+        "rename_failed": "Rename failed",
+        "filename_unchanged": "Name unchanged",
+        "filename_preset": "Next recording name: {name}",
+        "batch_queued": "Added to transcription queue",
+        "rename_dialog_title": "Rename",
+        "rename_dialog_prompt": "New name:",
+        "not_started": "Not started",
+        "recording_file_prefix": "Recording",
+        "characters": "Characters: {count:,}",
+        "draft_title": "Live transcript draft - {timestamp}",
+        "transcript_file": "File",
+        "transcript_time": "Time",
+    },
+    "zh": {
+        "app_title": "MacVoiceFlow · 实时转录",
+        "ui_language": "界面语言",
+        "model": "模型引擎",
+        "output_language": "转录语言",
+        "max_lines": "最大行数",
+        "max_segment_duration": "最长单句（秒）",
+        "vad_threshold": "麦克风阈值（VAD）",
+        "pause_duration": "断句停顿（秒）",
+        "defaults": "默认设置",
+        "apply": "应用设置",
+        "initializing": "● 系统初始化...",
+        "recordings": "原始录音",
+        "results": "转录结果",
+        "open": "打开",
+        "batch_transcribe": "批量转译",
+        "refresh": "刷新列表",
+        "live_editor": "实时转录 / 编辑区",
+        "file_name": "文件名称:",
+        "save_name": "保存名称",
+        "queue_idle": "队列空闲",
+        "microphone_ready": "麦克风待命",
+        "start_recording": "开始录音",
+        "pause": "暂停",
+        "resume": "继续",
+        "stop_save": "停止并保存",
+        "open_play": "打开 / 播放",
+        "copy_file": "复制文件",
+        "show_in_finder": "在 Finder 中显示",
+        "rename": "重命名",
+        "delete_selected": "删除选中",
+        "copy_selection": "复制选中",
+        "clear": "清空",
+        "model_loading": "模型加载中...",
+        "model_ready": "模型就绪",
+        "model_load_failed": "加载失败",
+        "recording": "录音中",
+        "recording_buffering": "录音中（等待模型）",
+        "mic_start_failed": "麦克风启动失败",
+        "organizing": "整理文件中...",
+        "saved_name": "已保存: {name}",
+        "save_failed": "保存失败",
+        "recording_empty": "录音无内容",
+        "paused": "已暂停",
+        "recording_listening": "正在收音",
+        "recording_speaking": "正在收音（说话中）",
+        "ambient_silence": "环境静音中",
+        "queue_backlog": "队列积压: {count}",
+        "invalid_values": "数值无效，已恢复默认并保存",
+        "settings_applied": "设置已应用并保存",
+        "settings_reset": "已恢复默认设置",
+        "current_transcript": "已切回当前转录状态: {name}",
+        "list_refreshed": "列表已刷新",
+        "list_refreshed_no_selection": "列表已刷新，已取消文件选中",
+        "file_name_required": "文件名称不能为空",
+        "filename_set": "已设定本次录音文件名为: {name}",
+        "renamed": "已成功重命名为: {name}",
+        "rename_failed": "重命名失败",
+        "filename_unchanged": "文件名未发生变动",
+        "filename_preset": "已预设下一次录音名称为: {name}",
+        "batch_queued": "已加入批量队列",
+        "rename_dialog_title": "重命名",
+        "rename_dialog_prompt": "新名:",
+        "not_started": "未开始录音",
+        "recording_file_prefix": "录音",
+        "characters": "字数: {count:,}",
+        "draft_title": "录音实时转写草稿 - {timestamp}",
+        "transcript_file": "文件",
+        "transcript_time": "时间",
+    },
 }
+
+
+def normalize_ui_language(value):
+    if value in UI_LANGUAGE_OPTIONS.values():
+        return value
+    return UI_LANGUAGE_OPTIONS.get(value, "en")
+
+
+def normalize_output_language(value):
+    valid_codes = {code for code, _, _ in OUTPUT_LANGUAGE_OPTIONS if code}
+    if value in valid_codes or value is None:
+        return value
+    for code, english, chinese in OUTPUT_LANGUAGE_OPTIONS:
+        if value in {english, chinese}:
+            return code
+    return "zh"
+
+
+def normalize_model_key(value):
+    if value in MODEL_OPTIONS:
+        return value
+    for key, option in MODEL_OPTIONS.items():
+        if value in {option["en"], option["zh"], *option["legacy"]}:
+            return key
+    return "qwen-1.7b-4bit"
 
 # === 2. 录音室控制台设计系统 (Design System Tokens) ===
 THEME = {
@@ -168,7 +360,6 @@ THEME = {
 class UltimateASR:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{APP_NAME} · 实时语音转写")
         self.root.geometry("1400x950")
         self.root.configure(bg=THEME["bg_main"])
 
@@ -178,7 +369,17 @@ class UltimateASR:
         self.audio_queue = queue.Queue()
         self.asr_queue = queue.Queue()
         self.ui_queue = queue.Queue()
-        self.current_lang = "zh"
+        self.settings = self.load_settings()
+        self.ui_language = normalize_ui_language(self.settings.get("ui_language", "en"))
+        self.current_lang = normalize_output_language(self.settings.get("language", "zh"))
+        self.current_model_key = normalize_model_key(self.settings.get("model", DEFAULT_SETTINGS["model"]))
+        self.loading_model_id = ""
+        self.status_key = "initializing"
+        self.status_args = {}
+        self.status_color = THEME["fg_sub"]
+        self.last_vu_level = 0.0
+        self.last_vu_active = False
+        self.ui_widgets = {}
 
         self.full_recording = []
         self.vad_buffer = []
@@ -190,17 +391,16 @@ class UltimateASR:
         self.current_live_md = None
         self.current_session_ts = ""
         self.last_q_size = -1
-        self.var_current_filename = tk.StringVar(value="未开始录音")
+        self.var_current_filename = tk.StringVar(value=self.t("not_started"))
         self.active_selected_file = None
         self.active_list = None
         self.custom_session_name = ""
-        self.var_char_count = tk.StringVar(value="字数: 0")
+        self.var_char_count = tk.StringVar(value=self.t("characters", count=0))
         self.var_rec_timer = tk.StringVar(value="00:00:00")
         self.record_start_time = 0
         self.total_chars_accumulated = 0
 
         # UI 与性能参数持久化 (全部支持填入框绑定与校验)
-        self.settings = self.load_settings()
         self.var_max_lines = tk.StringVar(value=str(self.settings.get("max_lines", "3000")))
         self.var_max_dur = tk.StringVar(value=str(self.settings.get("max_segment_duration", "10.0")))
         self.var_vad_threshold = tk.StringVar(value=str(self.settings.get("vad_threshold", "0.006")))
@@ -228,24 +428,91 @@ class UltimateASR:
         threading.Thread(target=self.queue_monitor, daemon=True, name="QueueMonitor").start()
 
         # 应用记忆的设置
-        saved_model = self.settings.get("model", DEFAULT_SETTINGS["model"])
-        if saved_model in MODELS:
-            self.cb_model.set(saved_model)
-        else:
-            self.cb_model.current(0)
-
-        saved_lang = self.settings.get("language", DEFAULT_SETTINGS["language"])
-        if saved_lang in LANGUAGES:
-            self.cb_lang.set(saved_lang)
-        else:
-            self.cb_lang.current(0)
-
-        self._on_lang_change()
+        self.cb_ui_lang.set(UI_LANGUAGE_LABELS[self.ui_language])
+        self.cb_model.set(self.model_label(self.current_model_key))
+        self.cb_lang.set(self.output_language_label(self.current_lang))
+        self._on_lang_change(persist=False)
+        self.apply_language()
         self.refresh_files()
         self._cleanup_old_temp_chunks()
 
         # 异步加载
         self.root.after(300, self.trigger_model_switch)
+
+    def t(self, key, **kwargs):
+        template = TEXT.get(self.ui_language, TEXT["en"]).get(key, key)
+        return template.format(**kwargs) if kwargs else template
+
+    def model_label(self, key):
+        return MODEL_OPTIONS[normalize_model_key(key)][self.ui_language]
+
+    def model_values(self):
+        return [option[self.ui_language] for option in MODEL_OPTIONS.values()]
+
+    def model_key_from_value(self, value):
+        return normalize_model_key(value)
+
+    def output_language_label(self, code):
+        for option_code, english, chinese in OUTPUT_LANGUAGE_OPTIONS:
+            if option_code == code:
+                return english if self.ui_language == "en" else chinese
+        return "Auto" if self.ui_language == "en" else "自动"
+
+    def output_language_values(self):
+        return [self.output_language_label(code) for code, _, _ in OUTPUT_LANGUAGE_OPTIONS]
+
+    def set_status(self, key, color, **kwargs):
+        self.status_key = key
+        self.status_args = kwargs
+        self.status_color = color
+        if hasattr(self, "lbl_status"):
+            self.lbl_status.config(text=self.t(key, **kwargs), foreground=color)
+
+    def set_queue_status(self, count):
+        self.last_q_size = count
+        if hasattr(self, "lbl_queue"):
+            text = self.t("queue_idle") if count <= 0 else self.t("queue_backlog", count=count)
+            color = THEME["success"] if count <= 0 else THEME["warning"]
+            self.lbl_queue.config(text=text, foreground=color)
+
+    def apply_language(self):
+        """Update all visible copy without rebuilding the existing single-workspace layout."""
+        if not hasattr(self, "cb_ui_lang"):
+            return
+
+        self.root.title(self.t("app_title"))
+        self.cb_ui_lang["values"] = list(UI_LANGUAGE_OPTIONS.keys())
+        self.cb_ui_lang.set(UI_LANGUAGE_LABELS[self.ui_language])
+        self.cb_model["values"] = self.model_values()
+        self.cb_model.set(self.model_label(self.current_model_key))
+        self.cb_lang["values"] = self.output_language_values()
+        self.cb_lang.set(self.output_language_label(self.current_lang))
+
+        for key, widget in self.ui_widgets.items():
+            widget.config(text=self.t(key))
+
+        self.lbl_rec_header.config(text=self.t("recordings"))
+        self.btn_open_record.config(text=self.t("open"))
+        self.btn_batch.config(text=self.t("batch_transcribe"))
+        self.btn_refresh.config(text=self.t("refresh"))
+        self.lbl_res_header.config(text=self.t("results"))
+        self.btn_open_results.config(text=self.t("open"))
+        self.btn_pause.config(text=self.t("resume" if self.is_paused else "pause"))
+
+        if self.var_current_filename.get() in {"Not started", "未开始录音"}:
+            self.var_current_filename.set(self.t("not_started"))
+        self.var_char_count.set(self.t("characters", count=self.total_chars_accumulated))
+        self.set_status(self.status_key, self.status_color, **self.status_args)
+        self.set_queue_status(self.last_q_size)
+        self.update_vu_meter(self.last_vu_level, self.last_vu_active)
+
+        self.m_file.entryconfigure(0, label=self.t("open_play"))
+        self.m_file.entryconfigure(1, label=self.t("copy_file"))
+        self.m_file.entryconfigure(3, label=self.t("show_in_finder"))
+        self.m_file.entryconfigure(4, label=self.t("rename"))
+        self.m_file.entryconfigure(5, label=self.t("delete_selected"))
+        self.m_txt.entryconfigure(0, label=self.t("copy_selection"))
+        self.m_txt.entryconfigure(1, label=self.t("clear"))
 
     def load_settings(self):
         s = DEFAULT_SETTINGS.copy()
@@ -262,8 +529,9 @@ class UltimateASR:
     def save_settings(self):
         try:
             s = {
-                "model": self.cb_model.get() if hasattr(self, 'cb_model') else DEFAULT_SETTINGS["model"],
-                "language": self.cb_lang.get() if hasattr(self, 'cb_lang') else DEFAULT_SETTINGS["language"],
+                "ui_language": getattr(self, "ui_language", DEFAULT_SETTINGS["ui_language"]),
+                "model": self.model_key_from_value(self.cb_model.get()) if hasattr(self, 'cb_model') else DEFAULT_SETTINGS["model"],
+                "language": getattr(self, "current_lang", DEFAULT_SETTINGS["language"]),
                 "max_lines": self.var_max_lines.get() if hasattr(self, 'var_max_lines') else str(DEFAULT_SETTINGS["max_lines"]),
                 "max_segment_duration": getattr(self, "max_segment_duration", DEFAULT_SETTINGS["max_segment_duration"]),
                 "vad_threshold": getattr(self, "silence_threshold", DEFAULT_SETTINGS["vad_threshold"]),
@@ -325,14 +593,18 @@ class UltimateASR:
 
         if not silent:
             if corrected:
-                self.lbl_status.config(text="数值无效，已恢复默认并保存", foreground=THEME["warning"])
+                self.set_status("invalid_values", THEME["warning"])
             else:
-                self.lbl_status.config(text="设置已应用并保存", foreground=THEME["success"])
+                self.set_status("settings_applied", THEME["success"])
 
     def reset_to_default_settings(self):
         logger.info("重置为默认设置")
-        self.cb_model.set(DEFAULT_SETTINGS["model"])
-        self.cb_lang.set(DEFAULT_SETTINGS["language"])
+        self.ui_language = DEFAULT_SETTINGS["ui_language"]
+        self.current_model_key = DEFAULT_SETTINGS["model"]
+        self.current_lang = DEFAULT_SETTINGS["language"]
+        self.cb_ui_lang.set(UI_LANGUAGE_LABELS[self.ui_language])
+        self.cb_model.set(self.model_label(self.current_model_key))
+        self.cb_lang.set(self.output_language_label(self.current_lang))
         self.var_max_lines.set(str(DEFAULT_SETTINGS["max_lines"]))
         self.var_max_dur.set(str(DEFAULT_SETTINGS["max_segment_duration"]))
         self.var_vad_threshold.set(str(DEFAULT_SETTINGS["vad_threshold"]))
@@ -340,10 +612,11 @@ class UltimateASR:
         self.max_segment_duration = DEFAULT_SETTINGS["max_segment_duration"]
         self.silence_threshold = DEFAULT_SETTINGS["vad_threshold"]
         self.silence_duration = DEFAULT_SETTINGS["pause_duration"]
-        self._on_lang_change()
+        self._on_lang_change(persist=False)
+        self.apply_language()
         self.trigger_model_switch()
         self.save_settings()
-        self.lbl_status.config(text="已恢复默认设置", foreground=THEME["success"])
+        self.set_status("settings_reset", THEME["success"])
 
     def poll_ui_queue(self):
         try:
@@ -352,8 +625,8 @@ class UltimateASR:
                 mtype = msg[0]
                 if mtype == "TEXT":
                     self.append_text(msg[1])
-                elif mtype == "STATUS":
-                    self.lbl_status.config(text=msg[1], foreground=msg[2])
+                elif mtype == "STATUS_KEY":
+                    self.set_status(msg[1], msg[2], **(msg[3] if len(msg) > 3 else {}))
                 elif mtype == "PROGRESS":
                     mode, val, action = msg[1], msg[2], msg[3]
                     if action == "start":
@@ -363,7 +636,7 @@ class UltimateASR:
                         self.progress.stop()
                         self.progress.config(mode=mode, value=val)
                 elif mtype == "QUEUE_LABEL":
-                    self.lbl_queue.config(text=msg[1], foreground=msg[2])
+                    self.set_queue_status(msg[1])
                 elif mtype == "VU_METER":
                     self.update_vu_meter(msg[1], msg[2])
                 elif mtype == "SAVE_FLOW":
@@ -379,6 +652,8 @@ class UltimateASR:
 
     def update_vu_meter(self, level, is_active):
         """实时渲染 20 段 LED 立体声感动态电平表"""
+        self.last_vu_level = level
+        self.last_vu_active = is_active
         if not hasattr(self, 'canvas_vu'): return
         try:
             self.canvas_vu.delete("all")
@@ -405,9 +680,9 @@ class UltimateASR:
 
             if hasattr(self, 'lbl_vu_hint'):
                 if is_active:
-                    self.lbl_vu_hint.config(text="正在收音 (说话中)", foreground=THEME["success"])
+                    self.lbl_vu_hint.config(text=self.t("recording_speaking"), foreground=THEME["success"])
                 else:
-                    self.lbl_vu_hint.config(text="环境静音中", foreground=THEME["fg_sub"])
+                    self.lbl_vu_hint.config(text=self.t("ambient_silence"), foreground=THEME["fg_sub"])
         except Exception:
             pass
 
@@ -433,11 +708,17 @@ class UltimateASR:
                 pass
         self.root.destroy()
 
-    def _on_lang_change(self, event=None):
-        name = self.cb_lang.get()
-        self.current_lang = LANGUAGES.get(name, "zh")
+    def _on_ui_language_change(self, event=None):
+        self.ui_language = normalize_ui_language(self.cb_ui_lang.get())
+        self.apply_language()
         self.save_settings()
-        logger.info(f"语言配置切换为: {name} (参数: {self.current_lang})")
+        logger.info(f"界面语言切换为: {self.ui_language}")
+
+    def _on_lang_change(self, event=None, persist=True):
+        self.current_lang = normalize_output_language(self.cb_lang.get())
+        if persist:
+            self.save_settings()
+        logger.info(f"转录语言配置切换为: {self.current_lang}")
 
     def setup_styles(self):
         s = ttk.Style()
@@ -468,48 +749,69 @@ class UltimateASR:
     def setup_ui(self):
         top = ttk.Frame(self.root, style="Card.TFrame", padding=(18, 14))
         top.pack(fill=tk.X, padx=16, pady=(16, 12))
-        for column in range(8):
+        for column in range(9):
             top.columnconfigure(column, weight=0)
-        top.columnconfigure(6, weight=1)
+        top.columnconfigure(7, weight=1)
 
-        ttk.Label(top, text="模型引擎", style="Sub.TLabel").grid(row=0, column=0, sticky="w", padx=(6, 10))
-        self.cb_model = ttk.Combobox(top, values=list(MODELS.keys()), state="readonly", width=22)
-        self.cb_model.grid(row=1, column=0, sticky="w", padx=(6, 10), pady=(3, 0))
+        self.lbl_ui_language = ttk.Label(top, text=self.t("ui_language"), style="Sub.TLabel")
+        self.lbl_ui_language.grid(row=0, column=0, sticky="w", padx=(6, 10))
+        self.ui_widgets["ui_language"] = self.lbl_ui_language
+        self.cb_ui_lang = ttk.Combobox(top, values=list(UI_LANGUAGE_OPTIONS.keys()), state="readonly", width=10)
+        self.cb_ui_lang.grid(row=1, column=0, sticky="w", padx=(6, 10), pady=(3, 0))
+        self.cb_ui_lang.bind("<<ComboboxSelected>>", self._on_ui_language_change)
+
+        self.lbl_model = ttk.Label(top, text=self.t("model"), style="Sub.TLabel")
+        self.lbl_model.grid(row=0, column=1, sticky="w", padx=10)
+        self.ui_widgets["model"] = self.lbl_model
+        self.cb_model = ttk.Combobox(top, values=self.model_values(), state="readonly", width=24)
+        self.cb_model.grid(row=1, column=1, sticky="w", padx=10, pady=(3, 0))
         self.cb_model.bind("<<ComboboxSelected>>", self.trigger_model_switch)
 
-        ttk.Label(top, text="输出语言", style="Sub.TLabel").grid(row=0, column=1, sticky="w", padx=10)
-        self.cb_lang = ttk.Combobox(top, values=list(LANGUAGES.keys()), state="readonly", width=8)
-        self.cb_lang.grid(row=1, column=1, sticky="w", padx=10, pady=(3, 0))
+        self.lbl_output_language = ttk.Label(top, text=self.t("output_language"), style="Sub.TLabel")
+        self.lbl_output_language.grid(row=0, column=2, sticky="w", padx=10)
+        self.ui_widgets["output_language"] = self.lbl_output_language
+        self.cb_lang = ttk.Combobox(top, values=self.output_language_values(), state="readonly", width=10)
+        self.cb_lang.grid(row=1, column=2, sticky="w", padx=10, pady=(3, 0))
         self.cb_lang.bind("<<ComboboxSelected>>", self._on_lang_change)
 
-        ttk.Label(top, text="最大行数", style="Sub.TLabel").grid(row=0, column=2, sticky="w", padx=10)
+        self.lbl_max_lines = ttk.Label(top, text=self.t("max_lines"), style="Sub.TLabel")
+        self.lbl_max_lines.grid(row=0, column=3, sticky="w", padx=10)
+        self.ui_widgets["max_lines"] = self.lbl_max_lines
         self.entry_max_lines = ttk.Entry(top, textvariable=self.var_max_lines, width=7)
-        self.entry_max_lines.grid(row=1, column=2, sticky="w", padx=10, pady=(3, 0))
+        self.entry_max_lines.grid(row=1, column=3, sticky="w", padx=10, pady=(3, 0))
         self.entry_max_lines.bind("<Return>", lambda e: self.apply_settings())
 
-        ttk.Label(top, text="最长单句 (秒)", style="Sub.TLabel").grid(row=0, column=3, sticky="w", padx=10)
+        self.lbl_max_duration = ttk.Label(top, text=self.t("max_segment_duration"), style="Sub.TLabel")
+        self.lbl_max_duration.grid(row=0, column=4, sticky="w", padx=10)
+        self.ui_widgets["max_segment_duration"] = self.lbl_max_duration
         self.entry_max_dur = ttk.Entry(top, textvariable=self.var_max_dur, width=7)
-        self.entry_max_dur.grid(row=1, column=3, sticky="w", padx=10, pady=(3, 0))
+        self.entry_max_dur.grid(row=1, column=4, sticky="w", padx=10, pady=(3, 0))
         self.entry_max_dur.bind("<Return>", lambda e: self.apply_settings())
 
-        ttk.Label(top, text="麦克风阈值 (VAD)", style="Sub.TLabel").grid(row=0, column=4, sticky="w", padx=10)
+        self.lbl_vad = ttk.Label(top, text=self.t("vad_threshold"), style="Sub.TLabel")
+        self.lbl_vad.grid(row=0, column=5, sticky="w", padx=10)
+        self.ui_widgets["vad_threshold"] = self.lbl_vad
         self.entry_vad_thresh = ttk.Entry(top, textvariable=self.var_vad_threshold, width=7)
-        self.entry_vad_thresh.grid(row=1, column=4, sticky="w", padx=10, pady=(3, 0))
+        self.entry_vad_thresh.grid(row=1, column=5, sticky="w", padx=10, pady=(3, 0))
         self.entry_vad_thresh.bind("<Return>", lambda e: self.apply_settings())
 
-        ttk.Label(top, text="断句停顿 (秒)", style="Sub.TLabel").grid(row=0, column=5, sticky="w", padx=10)
+        self.lbl_pause = ttk.Label(top, text=self.t("pause_duration"), style="Sub.TLabel")
+        self.lbl_pause.grid(row=0, column=6, sticky="w", padx=10)
+        self.ui_widgets["pause_duration"] = self.lbl_pause
         self.entry_pause_dur = ttk.Entry(top, textvariable=self.var_pause_duration, width=7)
-        self.entry_pause_dur.grid(row=1, column=5, sticky="w", padx=10, pady=(3, 0))
+        self.entry_pause_dur.grid(row=1, column=6, sticky="w", padx=10, pady=(3, 0))
         self.entry_pause_dur.bind("<Return>", lambda e: self.apply_settings())
         f_btns = ttk.Frame(top, style="Card.TFrame")
-        f_btns.grid(row=0, column=6, rowspan=2, sticky="e", padx=(10, 16))
-        self.btn_reset_cfg = ttk.Button(f_btns, text="默认设置", style="Small.TButton", command=self.reset_to_default_settings)
+        f_btns.grid(row=0, column=7, rowspan=2, sticky="e", padx=(10, 16))
+        self.btn_reset_cfg = ttk.Button(f_btns, text=self.t("defaults"), style="Small.TButton", command=self.reset_to_default_settings)
         self.btn_reset_cfg.pack(fill=tk.X, pady=(0, 2))
-        self.btn_apply_cfg = ttk.Button(f_btns, text="应用设置", style="Action.TButton", command=self.apply_settings)
+        self.ui_widgets["defaults"] = self.btn_reset_cfg
+        self.btn_apply_cfg = ttk.Button(f_btns, text=self.t("apply"), style="Action.TButton", command=self.apply_settings)
         self.btn_apply_cfg.pack(fill=tk.X, pady=(2, 0))
+        self.ui_widgets["apply"] = self.btn_apply_cfg
 
-        self.lbl_status = ttk.Label(top, text="● 系统初始化...", style="H1.TLabel", foreground=THEME["fg_sub"])
-        self.lbl_status.grid(row=0, column=7, rowspan=2, sticky="e", padx=(10, 4))
+        self.lbl_status = ttk.Label(top, text=self.t("initializing"), style="H1.TLabel", foreground=THEME["fg_sub"])
+        self.lbl_status.grid(row=0, column=8, rowspan=2, sticky="e", padx=(10, 4))
 
         paned = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, bg=THEME["bg_main"], sashwidth=2, bd=0)
         paned.pack(fill=tk.BOTH, expand=True, padx=16, pady=(0, 14))
@@ -517,14 +819,14 @@ class UltimateASR:
         left = ttk.Frame(paned, style="Card.TFrame")
         paned.add(left, width=380)
 
-        self._create_header(left, "原始录音 (Record)", btn_text="打开", btn_cmd=lambda: subprocess.run(["open", RECORD_DIR]))
+        self.lbl_rec_header, self.btn_open_record = self._create_header(left, "recordings", btn_key="open", btn_cmd=lambda: subprocess.run(["open", RECORD_DIR]))
         self.lst_rec = self._create_listbox(left)
         self.lst_rec.pack(fill=tk.BOTH, expand=True, padx=12)
-        self._create_toolbar(left, "批量转译", self.transcribe_sel, "刷新列表", self.on_manual_refresh)
+        self.btn_batch, self.btn_refresh = self._create_toolbar(left, "batch_transcribe", self.transcribe_sel, "refresh", self.on_manual_refresh)
 
         ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=16, pady=8)
 
-        self._create_header(left, "转录结果 (Results)", btn_text="打开", btn_cmd=lambda: subprocess.run(["open", RESULT_DIR]))
+        self.lbl_res_header, self.btn_open_results = self._create_header(left, "results", btn_key="open", btn_cmd=lambda: subprocess.run(["open", RESULT_DIR]))
         self.lst_res = self._create_listbox(left)
         self.lst_res.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
@@ -533,20 +835,25 @@ class UltimateASR:
 
         f_head_right = ttk.Frame(right, style="Card.TFrame")
         f_head_right.pack(fill=tk.X, padx=16, pady=(14, 6))
-        ttk.Label(f_head_right, text="实时同传 / 编辑区", style="H1.TLabel").pack(side=tk.LEFT)
+        self.lbl_live_header = ttk.Label(f_head_right, text=self.t("live_editor"), style="H1.TLabel")
+        self.lbl_live_header.pack(side=tk.LEFT)
+        self.ui_widgets["live_editor"] = self.lbl_live_header
 
-        ttk.Label(f_head_right, text="文件名称:", style="Sub.TLabel").pack(side=tk.LEFT, padx=(18, 5))
+        self.lbl_filename = ttk.Label(f_head_right, text=self.t("file_name"), style="Sub.TLabel")
+        self.lbl_filename.pack(side=tk.LEFT, padx=(18, 5))
+        self.ui_widgets["file_name"] = self.lbl_filename
         self.entry_filename = ttk.Entry(f_head_right, textvariable=self.var_current_filename, width=22)
         self.entry_filename.pack(side=tk.LEFT, padx=(0, 6))
         self.entry_filename.bind("<Return>", lambda e: self.save_or_rename_filename())
 
-        self.btn_save_filename = ttk.Button(f_head_right, text="保存名称", style="Action.TButton", command=self.save_or_rename_filename)
+        self.btn_save_filename = ttk.Button(f_head_right, text=self.t("save_name"), style="Action.TButton", command=self.save_or_rename_filename)
         self.btn_save_filename.pack(side=tk.LEFT, padx=(0, 12))
+        self.ui_widgets["save_name"] = self.btn_save_filename
 
         f_indicators = ttk.Frame(f_head_right, style="Card.TFrame")
         f_indicators.pack(side=tk.RIGHT)
 
-        self.lbl_queue = ttk.Label(f_indicators, text="队列空闲", style="Badge.TLabel", foreground=THEME["success"])
+        self.lbl_queue = ttk.Label(f_indicators, text=self.t("queue_idle"), style="Badge.TLabel", foreground=THEME["success"])
         self.lbl_queue.pack(side=tk.RIGHT, padx=(6, 0))
 
         self.lbl_char_count = ttk.Label(f_indicators, textvariable=self.var_char_count, style="Badge.TLabel", foreground=THEME["fg_sub"])
@@ -583,31 +890,38 @@ class UltimateASR:
         self.canvas_vu = tk.Canvas(f_vu, height=12, bg=THEME["bg_card"], bd=0, highlightthickness=0)
         self.canvas_vu.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=16)
 
-        self.lbl_vu_hint = ttk.Label(f_vu, text="麦克风待命", style="Sub.TLabel")
+        self.lbl_vu_hint = ttk.Label(f_vu, text=self.t("microphone_ready"), style="Sub.TLabel")
         self.lbl_vu_hint.pack(side=tk.RIGHT)
 
         f_actions = ttk.Frame(btm, style="Card.TFrame")
         f_actions.pack(fill=tk.X)
 
-        self.btn_start = ttk.Button(f_actions, text="开始录音", style="Accent.TButton", command=self.start_rec)
+        self.btn_start = ttk.Button(f_actions, text=self.t("start_recording"), style="Accent.TButton", command=self.start_rec)
         self.btn_start.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
+        self.ui_widgets["start_recording"] = self.btn_start
 
-        self.btn_pause = ttk.Button(f_actions, text="暂停", style="Normal.TButton", command=self.toggle_pause, state=tk.DISABLED)
+        self.btn_pause = ttk.Button(f_actions, text=self.t("pause"), style="Normal.TButton", command=self.toggle_pause, state=tk.DISABLED)
         self.btn_pause.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
+        self.ui_widgets["pause"] = self.btn_pause
 
-        self.btn_stop = ttk.Button(f_actions, text="停止并保存", style="Danger.TButton", command=self.stop_rec, state=tk.DISABLED)
+        self.btn_stop = ttk.Button(f_actions, text=self.t("stop_save"), style="Danger.TButton", command=self.stop_rec, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+        self.ui_widgets["stop_save"] = self.btn_stop
 
         self.progress = ttk.Progressbar(self.root, style="Minimal.Horizontal.TProgressbar", mode="determinate")
         self.progress.pack(side=tk.BOTTOM, fill=tk.X)
 
     # === 辅助函数 ===
-    def _create_header(self, p, t, btn_text=None, btn_cmd=None):
+    def _create_header(self, p, title_key, btn_key=None, btn_cmd=None):
         f = ttk.Frame(p, style="Card.TFrame")
         f.pack(fill=tk.X, padx=15, pady=(15, 8))
-        ttk.Label(f, text=t, style="H1.TLabel").pack(side=tk.LEFT)
-        if btn_text and btn_cmd:
-            ttk.Button(f, text=btn_text, style="Normal.TButton", command=btn_cmd).pack(side=tk.RIGHT)
+        label = ttk.Label(f, text=self.t(title_key), style="H1.TLabel")
+        label.pack(side=tk.LEFT)
+        button = None
+        if btn_key and btn_cmd:
+            button = ttk.Button(f, text=self.t(btn_key), style="Normal.TButton", command=btn_cmd)
+            button.pack(side=tk.RIGHT)
+        return label, button
 
     def _create_listbox(self, p):
         container = ttk.Frame(p, style="Card.TFrame")
@@ -628,23 +942,26 @@ class UltimateASR:
         lb.bind("<<ListboxSelect>>", self.on_listbox_select)
         return lb
 
-    def _create_toolbar(self, p, t1, c1, t2, c2):
+    def _create_toolbar(self, p, key1, c1, key2, c2):
         f = ttk.Frame(p, style="Card.TFrame", padding=(10, 10))
         f.pack(fill=tk.X)
-        ttk.Button(f, text=t1, style="Normal.TButton", command=c1).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0,5))
-        ttk.Button(f, text=t2, style="Normal.TButton", command=c2).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5,0))
+        btn1 = ttk.Button(f, text=self.t(key1), style="Normal.TButton", command=c1)
+        btn1.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        btn2 = ttk.Button(f, text=self.t(key2), style="Normal.TButton", command=c2)
+        btn2.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        return btn1, btn2
 
     def setup_menus(self):
         self.m_file = Menu(self.root, tearoff=0)
-        self.m_file.add_command(label="打开 / 播放", command=self.menu_open)
-        self.m_file.add_command(label="复制文件", command=self.menu_copy_file)
+        self.m_file.add_command(label=self.t("open_play"), command=self.menu_open)
+        self.m_file.add_command(label=self.t("copy_file"), command=self.menu_copy_file)
         self.m_file.add_separator()
-        self.m_file.add_command(label="在 Finder 中显示", command=self.menu_reveal)
-        self.m_file.add_command(label="重命名", command=self.menu_rename)
-        self.m_file.add_command(label="删除选中", command=self.menu_delete)
+        self.m_file.add_command(label=self.t("show_in_finder"), command=self.menu_reveal)
+        self.m_file.add_command(label=self.t("rename"), command=self.menu_rename)
+        self.m_file.add_command(label=self.t("delete_selected"), command=self.menu_delete)
         self.m_txt = Menu(self.root, tearoff=0)
-        self.m_txt.add_command(label="复制选中", command=self.copy_selection)
-        self.m_txt.add_command(label="清空", command=lambda: self.txt.delete("1.0", tk.END))
+        self.m_txt.add_command(label=self.t("copy_selection"), command=self.copy_selection)
+        self.m_txt.add_command(label=self.t("clear"), command=lambda: self.txt.delete("1.0", tk.END))
 
     def _update_sens(self, v):
         self.silence_threshold = float(v)
@@ -674,12 +991,14 @@ class UltimateASR:
 
     # === 模型加载 ===
     def trigger_model_switch(self, e=None):
-        mid = MODELS.get(self.cb_model.get())
+        self.current_model_key = self.model_key_from_value(self.cb_model.get())
+        mid = MODEL_OPTIONS[self.current_model_key]["id"]
         self.save_settings()
-        if not mid or mid == self.current_model_id: return
-        self.current_model_id = mid
+        if mid == self.current_model_id or mid == self.loading_model_id:
+            return
+        self.loading_model_id = mid
         self.root.after(0, lambda: [
-            self.lbl_status.config(text="模型加载中...", foreground=THEME["warning"]),
+            self.set_status("model_loading", THEME["warning"]),
             self.progress.config(mode='indeterminate'),
             self.progress.start(10)
         ])
@@ -701,10 +1020,10 @@ class UltimateASR:
         # 初始化录音文件名称：优先采用用户输入框中或预设的名字，否则默认 "录音_时间戳"
         self.current_session_ts = time.strftime("%Y%m%d_%H%M%S")
         cur_input = self.var_current_filename.get().strip() if hasattr(self, 'var_current_filename') else ""
-        if cur_input and cur_input != "未开始录音":
+        if cur_input and cur_input not in {"Not started", "未开始录音"}:
             self.custom_session_name = cur_input
         else:
-            self.custom_session_name = f"录音_{self.current_session_ts}"
+            self.custom_session_name = f"{self.t('recording_file_prefix')}_{self.current_session_ts}"
 
         self.var_current_filename.set(self.custom_session_name)
         self.active_selected_file = None # 开启录音时脱离左侧文件选中
@@ -713,27 +1032,26 @@ class UltimateASR:
         self.current_live_md = os.path.join(RESULT_DIR, f"实时草稿_{self.current_session_ts}.md")
         try:
             with open(self.current_live_md, "w", encoding="utf-8") as f:
-                f.write(f"# 录音实时转写草稿 - {self.current_session_ts}\n\n")
+                f.write(f"# {self.t('draft_title', timestamp=self.current_session_ts)}\n\n")
         except Exception as e:
             logger.warning(f"初始化实时草稿文件失败: {e}")
 
         self.btn_start.config(state=tk.DISABLED)
         self.btn_stop.config(state=tk.NORMAL)
-        self.btn_pause.config(state=tk.NORMAL, text="暂停")
+        self.btn_pause.config(state=tk.NORMAL, text=self.t("pause"))
 
-        status_text = "录音进行中" if self.model else "录音中 (缓冲待转译)"
         status_color = THEME["danger"] if self.model else THEME["warning"]
-        self.lbl_status.config(text=status_text, foreground=status_color)
+        self.set_status("recording" if self.model else "recording_buffering", status_color)
 
         # 启动工作台计时器与重置字数
         self.record_start_time = time.time()
         self.var_rec_timer.set("00:00:00")
         self.total_chars_accumulated = 0
-        self.var_char_count.set("字数: 0")
+        self.var_char_count.set(self.t("characters", count=0))
         if hasattr(self, 'lbl_rec_dot'):
             self.lbl_rec_dot.config(foreground=THEME["danger"])
         if hasattr(self, 'lbl_vu_hint'):
-            self.lbl_vu_hint.config(text="正在收音 (环境监听中)", foreground=THEME["fg_sub"])
+            self.lbl_vu_hint.config(text=self.t("recording_listening"), foreground=THEME["fg_sub"])
         self.root.after(1000, self._timer_tick)
 
         logger.info("开始录音，初始化音频输入流...")
@@ -744,7 +1062,7 @@ class UltimateASR:
             logger.info("音频流启动成功")
         except Exception as e:
             logger.error(f"启动麦克风输入流失败: {e}", exc_info=True)
-            self.lbl_status.config(text="麦克风启动失败", foreground=THEME["danger"])
+            self.set_status("mic_start_failed", THEME["danger"])
             self.btn_start.config(state=tk.NORMAL)
             self.btn_stop.config(state=tk.DISABLED)
             self.btn_pause.config(state=tk.DISABLED)
@@ -838,7 +1156,7 @@ class UltimateASR:
                 if action == "LOAD_MODEL":
                     mid = payload
                     logger.info(f"ASR 线程开始加载模型: {mid}")
-                    self.ui_queue.put(("STATUS", "模型加载中...", THEME["warning"]))
+                    self.ui_queue.put(("STATUS_KEY", "model_loading", THEME["warning"]))
                     self.ui_queue.put(("PROGRESS", "indeterminate", 10, "start"))
 
                     if self.model:
@@ -857,12 +1175,16 @@ class UltimateASR:
                     try:
                         from mlx_audio.stt.utils import load_model
                         self.model = load_model(mid)
+                        self.current_model_id = mid
+                        self.loading_model_id = ""
                         logger.info(f"ASR 线程模型加载成功: {mid}")
-                        self.ui_queue.put(("STATUS", "模型就绪", THEME["success"]))
+                        self.ui_queue.put(("STATUS_KEY", "model_ready", THEME["success"]))
                         self.ui_queue.put(("PROGRESS", "determinate", 0, "stop"))
                     except Exception as e:
+                        self.current_model_id = ""
+                        self.loading_model_id = ""
                         logger.error(f"模型加载失败 [{mid}]: {e}", exc_info=True)
-                        self.ui_queue.put(("STATUS", "加载失败", THEME["danger"]))
+                        self.ui_queue.put(("STATUS_KEY", "model_load_failed", THEME["danger"]))
                         self.ui_queue.put(("PROGRESS", "determinate", 0, "stop"))
 
                 elif action in ("TRANSCRIBE", "TRANSCRIBE_FILE"):
@@ -882,10 +1204,7 @@ class UltimateASR:
                 q_size = self.asr_queue.qsize()
                 if q_size != self.last_q_size:
                     self.last_q_size = q_size
-                    if q_size > 0:
-                        self.ui_queue.put(("QUEUE_LABEL", f"队列积压: {q_size}", THEME["warning"]))
-                    else:
-                        self.ui_queue.put(("QUEUE_LABEL", "队列空闲", THEME["success"]))
+                    self.ui_queue.put(("QUEUE_LABEL", q_size))
             except Exception:
                 pass
             time.sleep(0.5)
@@ -900,11 +1219,11 @@ class UltimateASR:
                 if not os.path.exists(item):
                     return
                 arr, sr = sf.read(item)
+                if arr.ndim > 1:
+                    arr = np.mean(arr, axis=1)
                 if sr != 16000:
                     import librosa
                     arr = librosa.resample(arr, orig_sr=sr, target_sr=16000)
-                if arr.ndim > 1:
-                    arr = np.mean(arr, axis=1)
                 arr = arr.astype(np.float32)
             else:
                 # 内存切片
@@ -938,7 +1257,10 @@ class UltimateASR:
                         file_md = os.path.join(RESULT_DIR, f"{base}.md")
                         formatted = clean_and_format_transcript(txt, target_chars_per_para=150)
                         with open(file_md, "w", encoding="utf-8") as f:
-                            f.write(f"# {base}\n**文件**: {item}\n**时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n---\n\n{formatted}\n")
+                            f.write(
+                                f"# {base}\n**{self.t('transcript_file')}**: {item}\n"
+                                f"**{self.t('transcript_time')}**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n---\n\n{formatted}\n"
+                            )
                         logger.info(f"批量文件转录结果已保存: {file_md}")
                         self.root.after(0, self.refresh_files)
                     except Exception as ef:
@@ -961,7 +1283,7 @@ class UltimateASR:
     def stop_rec(self):
         if not self.is_listening: return
         self.is_listening = False
-        self.lbl_status.config(text="整理文件中...", foreground=THEME["accent"])
+        self.set_status("organizing", THEME["accent"])
         self.btn_stop.config(state=tk.DISABLED)
         threading.Thread(target=self._stop_bg, daemon=True, name="StopRecorder").start()
 
@@ -992,10 +1314,10 @@ class UltimateASR:
         input_name = self.var_current_filename.get().strip() if hasattr(self, 'var_current_filename') else ""
         if custom:
             default_name = custom
-        elif input_name and input_name != "未开始录音":
+        elif input_name and input_name not in {"Not started", "未开始录音"}:
             default_name = input_name
         else:
-            default_name = f"录音_{ts}"
+            default_name = f"{self.t('recording_file_prefix')}_{ts}"
 
         for ch in r'/\:*?"<>|':
             default_name = default_name.replace(ch, "_")
@@ -1035,7 +1357,9 @@ class UltimateASR:
                 formatted_text = clean_and_format_transcript(raw_text, target_chars_per_para=150)
                 final_md = os.path.join(RESULT_DIR, f"{default_name}.md")
                 with open(final_md, "w", encoding="utf-8") as f:
-                    f.write(f"# {default_name}\n**时间**: {ts}\n\n---\n\n{formatted_text}\n")
+                    f.write(
+                        f"# {default_name}\n**{self.t('transcript_time')}**: {ts}\n\n---\n\n{formatted_text}\n"
+                    )
 
                 # 清理临时实时草稿
                 if self.current_live_md and os.path.exists(self.current_live_md):
@@ -1046,13 +1370,13 @@ class UltimateASR:
                 self.current_live_md = None
 
                 self.refresh_files()
-                self.lbl_status.config(text=f"已保存: {default_name}", foreground=THEME["success"])
+                self.set_status("saved_name", THEME["success"], name=default_name)
                 logger.info(f"录音与规整文本已保存: {final_md}")
             except Exception as e:
                 logger.error(f"规整转录文本异常: {e}", exc_info=True)
-                self.lbl_status.config(text="保存失败", foreground=THEME["danger"])
+                self.set_status("save_failed", THEME["danger"])
         else:
-            self.lbl_status.config(text="录音无效(无内容)", foreground=THEME["fg_sub"])
+            self.set_status("recording_empty", THEME["fg_sub"])
             self.current_live_md = None
 
         # 复位电平表与指示灯
@@ -1060,24 +1384,24 @@ class UltimateASR:
             self.lbl_rec_dot.config(foreground=THEME["fg_subtle"])
         self.update_vu_meter(0.0, False)
         if hasattr(self, 'lbl_vu_hint'):
-            self.lbl_vu_hint.config(text="麦克风待命", foreground=THEME["fg_sub"])
+            self.lbl_vu_hint.config(text=self.t("microphone_ready"), foreground=THEME["fg_sub"])
 
     def toggle_pause(self):
         self.is_paused = not self.is_paused
-        txt = "继续" if self.is_paused else "暂停"
+        txt = self.t("resume" if self.is_paused else "pause")
         self.btn_pause.config(text=txt)
         if self.is_paused:
             if hasattr(self, 'lbl_rec_dot'):
                 self.lbl_rec_dot.config(foreground=THEME["warning"])
             if hasattr(self, 'lbl_vu_hint'):
-                self.lbl_vu_hint.config(text="已暂停收音", foreground=THEME["warning"])
+                self.lbl_vu_hint.config(text=self.t("paused"), foreground=THEME["warning"])
             self.update_vu_meter(0.0, False)
         else:
             if hasattr(self, 'lbl_rec_dot'):
                 self.lbl_rec_dot.config(foreground=THEME["danger"])
             if hasattr(self, 'lbl_vu_hint'):
-                self.lbl_vu_hint.config(text="正在收音 (环境监听中)", foreground=THEME["success"])
-        self.lbl_status.config(text="已暂停" if self.is_paused else "录音中", foreground=THEME["warning"] if self.is_paused else THEME["danger"])
+                self.lbl_vu_hint.config(text=self.t("recording_listening"), foreground=THEME["success"])
+        self.set_status("paused" if self.is_paused else "recording", THEME["warning"] if self.is_paused else THEME["danger"])
 
     def append_text(self, t):
         ts = time.strftime("%H:%M:%S")
@@ -1088,7 +1412,7 @@ class UltimateASR:
         # 实时字数累计更新
         self.total_chars_accumulated += len(t.strip())
         if hasattr(self, 'var_char_count'):
-            self.var_char_count.set(f"字数: {self.total_chars_accumulated:,}")
+            self.var_char_count.set(self.t("characters", count=self.total_chars_accumulated))
 
         # 动态读取最大保留行数设置，自动裁切最早行，防止长久运行渲染卡顿
         try:
@@ -1120,14 +1444,14 @@ class UltimateASR:
             cur_name = getattr(self, "custom_session_name", "")
             if not cur_name:
                 ts = getattr(self, "current_session_ts", "") or time.strftime("%Y%m%d_%H%M%S")
-                cur_name = f"录音_{ts}"
+                cur_name = f"{self.t('recording_file_prefix')}_{ts}"
                 self.custom_session_name = cur_name
             self.var_current_filename.set(cur_name)
-            self.lbl_status.config(text=f"已切回当前转录状态: {cur_name}", foreground=THEME["accent"])
+            self.set_status("current_transcript", THEME["accent"], name=cur_name)
             logger.info(f"手动刷新列表：已清除选中并切回当前转录状态: {cur_name}")
         else:
-            self.var_current_filename.set("未开始录音")
-            self.lbl_status.config(text="列表已刷新，已取消文件选中", foreground=THEME["fg_sub"])
+            self.var_current_filename.set(self.t("not_started"))
+            self.set_status("list_refreshed_no_selection", THEME["fg_sub"])
             logger.info("手动刷新列表：已清除选中，当前无转录工作流")
 
     def on_listbox_select(self, event):
@@ -1151,7 +1475,7 @@ class UltimateASR:
         """保存当前录音文件名或对选中的单个文件执行快捷重命名"""
         new_name = self.var_current_filename.get().strip()
         if not new_name:
-            self.lbl_status.config(text="文件名称不能为空", foreground=THEME["warning"])
+            self.set_status("file_name_required", THEME["warning"])
             return
 
         # 过滤非法字符
@@ -1162,7 +1486,7 @@ class UltimateASR:
         # 场景 1：当前正在录音中 -> 设定本次录音的最终落盘名称
         if self.is_listening:
             self.custom_session_name = new_name
-            self.lbl_status.config(text=f"已设定本次录音文件名为: {new_name}", foreground=THEME["success"])
+            self.set_status("filename_set", THEME["success"], name=new_name)
             logger.info(f"录音进行中，已设定本次会话自定义名称: {new_name}")
             return
 
@@ -1202,19 +1526,19 @@ class UltimateASR:
                             except Exception: pass
 
                     self.refresh_files()
-                    self.lbl_status.config(text=f"已成功重命名为: {new_name}", foreground=THEME["success"])
+                    self.set_status("renamed", THEME["success"], name=new_name)
                     return
                 except Exception as e:
                     logger.error(f"重命名文件失败: {e}", exc_info=True)
-                    self.lbl_status.config(text="重命名失败", foreground=THEME["danger"])
+                    self.set_status("rename_failed", THEME["danger"])
                     return
             else:
-                self.lbl_status.config(text="文件名未发生变动", foreground=THEME["fg_sub"])
+                self.set_status("filename_unchanged", THEME["fg_sub"])
                 return
 
         # 场景 3：未在录音且未选中具体文件 -> 预设下一次录音名称
         self.custom_session_name = new_name
-        self.lbl_status.config(text=f"已预设下一次录音名称为: {new_name}", foreground=THEME["success"])
+        self.set_status("filename_preset", THEME["success"], name=new_name)
 
     def get_sel_paths(self, w):
         d = RECORD_DIR if w == self.lst_rec else RESULT_DIR
@@ -1253,12 +1577,12 @@ class UltimateASR:
         ps = self.get_sel_paths(self.active_list)
         if ps:
             p = ps[0]
-            new = simpledialog.askstring("重命名", "新名:", initialvalue=os.path.basename(p))
+            new = simpledialog.askstring(self.t("rename_dialog_title"), self.t("rename_dialog_prompt"), initialvalue=os.path.basename(p))
             if new: os.rename(p, os.path.join(os.path.dirname(p), new)); self.refresh_files()
     def transcribe_sel(self):
         ps = self.get_sel_paths(self.lst_rec)
         for p in ps: self.asr_queue.put(("TRANSCRIBE_FILE", p))
-        self.lbl_status.config(text="已加入批量队列", foreground=THEME["accent"])
+        self.set_status("batch_queued", THEME["accent"])
 
 if __name__ == "__main__":
     root = tk.Tk()

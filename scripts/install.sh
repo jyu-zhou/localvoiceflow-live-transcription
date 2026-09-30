@@ -26,10 +26,16 @@ if [[ "$PYTHON_VERSION" != "3.11" && "$PYTHON_VERSION" != "3.12" ]]; then
   exit 1
 fi
 
+if ! "$PYTHON_BIN" -c 'import tkinter' >/dev/null 2>&1; then
+  echo "当前 Python 缺少 tkinter。请安装带 Tk 支持的 Python 3.11/3.12 后重试。"
+  exit 1
+fi
+
 echo "使用 Python $PYTHON_VERSION 创建本地环境..."
 "$PYTHON_BIN" -m venv "$ROOT_DIR/.venv"
 "$ROOT_DIR/.venv/bin/python" -m pip install --upgrade pip
 "$ROOT_DIR/.venv/bin/python" -m pip install -r "$ROOT_DIR/requirements-macos.txt"
+"$ROOT_DIR/.venv/bin/python" -m pip check
 
 mkdir -p "$HOME/Documents/MacVoiceFlow" "$HOME/Library/Caches/MacVoiceFlow/huggingface"
 

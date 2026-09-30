@@ -1,6 +1,7 @@
 {
-  "model": "1.7B-4bit (默认/推荐)",
-  "language": "中文",
+  "ui_language": "en",
+  "model": "qwen-1.7b-4bit",
+  "language": "zh",
   "max_lines": "3000",
   "max_segment_duration": 10.0,
   "vad_threshold": 0.006,
