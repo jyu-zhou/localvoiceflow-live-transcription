@@ -1,0 +1,25 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+
+# Local application data
+config.json
+Record/
+转录结果/
+TempChunks/
+InPut/
+OutPut/
+已处理音频/
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.mov
+*.aac
+*.flac
+
+# Local model caches
+hf_cache/
+.cache/

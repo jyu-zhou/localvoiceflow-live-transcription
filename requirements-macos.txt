@@ -1,0 +1,7 @@
+# Tested on macOS Apple Silicon with Python 3.11.
+mlx==0.31.2
+mlx-audio==0.4.3
+numpy==2.4.6
+librosa==0.11.0
+sounddevice==0.5.5
+soundfile==0.13.1
